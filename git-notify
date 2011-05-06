@@ -180,7 +180,8 @@ sub mail_notification($$$@)
         return unless defined $pid;
         if (!$pid)
         {
-            exec $mailer, "-s", $subject, "-a", "Content-Type: $content_type", $name or die "Cannot exec $mailer";
+            #exec $mailer, "-s", $subject, "-a", "Content-Type: $content_type", $name or die "Cannot exec $mailer";
+            exec $mailer, "-s", $subject, $name or die "Cannot exec $mailer";
         }
         print MAIL join("\n", @text), "\n";
         close MAIL;
@@ -387,7 +388,7 @@ sub send_global_notice($$$)
     }
     close LIST;
 
-    mail_notification($commitlist_address, "New commits on branch $ref", "text/plain; charset=UTF-8", @notice);
+    mail_notification($commitlist_address, "New commits on $repos_name branch $ref", "text/plain; charset=UTF-8", @notice);
 }
 
 # send all the notices
