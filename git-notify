@@ -55,8 +55,11 @@ my $gitweb_url = git_config( "notify.baseurl" );
 # default repository name (can be changed with the -r option)
 my $repos_name = git_config( "notify.repository" ) || get_repos_name();
 
-# max size of diffs in bytes (can be changed with the -s option)
+# max size of diffs in bytes (can be changed with the -s option), 0 to disable
 my $max_diff_size = git_config( "notify.maxdiff" ) || 10000;
+
+# max size of stat in bytes (can be changed with the -S option), 0 to disable
+my $max_stat_size = git_config( "notify.maxstat" ) || 10000;
 
 # address for mail notices (can be set with -m option)
 my $commitlist_address = git_config( "notify.mail" );
@@ -146,6 +149,7 @@ sub parse_options()
         elsif ($arg eq '-n') { $max_individual_notices = shift @ARGV; }
         elsif ($arg eq '-r') { $repos_name = shift @ARGV; }
         elsif ($arg eq '-s') { $max_diff_size = shift @ARGV; }
+        elsif ($arg eq '-S') { $max_stat_size = shift @ARGV; }
         elsif ($arg eq '-u') { $gitweb_url = shift @ARGV; }
         elsif ($arg eq '-i') { push @include_list, shift @ARGV; }
         elsif ($arg eq '-x') { push @exclude_list, shift @ARGV; }
@@ -273,19 +277,34 @@ sub send_commit_notice($$)
         "---",
         "";
 
-        open STAT, "-|" or exec "git", "diff-tree", "--stat", "-M", "--no-commit-id", $obj or die "cannot exec git-diff-tree";
-        push @notice, join("", <STAT>);
-        close STAT;
+        my $stat = '';
 
-        open DIFF, "-|" or exec "git", "diff-tree", "-p", "-M", "--no-commit-id", $obj or die "cannot exec git-diff-tree";
-        my $diff = join( "", <DIFF> );
-        close DIFF;
+        if ($max_stat_size)
+        {
+            open STAT, "-|" or exec "git", "diff-tree", "--stat", "-M", "--no-commit-id", $obj or die "cannot exec git-diff-tree";
+            $stat = join("", <STAT>);
+            close STAT;
+        }
+
+        if (($max_stat_size == -1) || (length($stat) < $max_stat_size))
+        {
+            push @notice, $stat;
+        }
+
+        my $diff = '';
+
+        if ($max_diff_size)
+        {
+            open DIFF, "-|" or exec "git", "diff-tree", "-p", "-M", "--no-commit-id", $obj or die "cannot exec git-diff-tree";
+            $diff = join( "", <DIFF> );
+            close DIFF;
+        }
 
         if (($max_diff_size == -1) || (length($diff) < $max_diff_size))
         {
             push @notice, $diff;
         }
-        else
+        elsif ($max_diff_size)
         {
             push @notice, "Diff:   $gitweb_url/?a=commitdiff;h=$obj" if $gitweb_url;
         }
