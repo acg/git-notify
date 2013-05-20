@@ -1,4 +1,4 @@
-#!/usr/bin/perl -w
+#!/usr/bin/env perl
 #
 # Tool to send git commit notifications
 #
@@ -26,6 +26,7 @@
 #
 
 use strict;
+use warnings;
 use open ':utf8';
 use Encode 'encode';
 use Cwd 'realpath';
