@@ -374,9 +374,9 @@ sub send_cia_notice($$)
 }
 
 # send a global commit notice when there are too many commits for individual mails
-sub send_global_notice($$$)
+sub send_global_notice($$$$)
 {
-    my ($ref, $old_sha1, $new_sha1) = @_;
+    my ($ref, $old_sha1, $new_sha1, $newref) = @_;
     my @notice = ();
 
     push @revlist_options, "--pretty";
@@ -389,22 +389,33 @@ sub send_global_notice($$$)
     }
     close LIST;
 
-    mail_notification($commitlist_address, "New commits on $repos_name branch $ref", "text/plain; charset=UTF-8", @notice);
+    my $subject = sprintf "New commits on %s branch %s%s", $repos_name, $ref, ($newref?' (new branch)':'');
+    mail_notification($commitlist_address, $subject, "text/plain; charset=UTF-8", @notice);
 }
 
 # send all the notices
 sub send_all_notices($$$)
 {
     my ($old_sha1, $new_sha1, $ref) = @_;
+    my $newref = 0;
 
     $ref =~ s/^refs\/heads\///;
 
     return if (@include_list && !grep {$_ eq $ref} @include_list);
 
-    if ($old_sha1 eq '0' x 40)  # new ref
+    if ($old_sha1 eq '0' x 40)  # new ref, find closest "branch point" ancestor
     {
-        send_commit_notice( $ref, $new_sha1 ) if $commitlist_address;
-        return;
+        $newref = 1;
+        $old_sha1 = undef;
+        open LIST, "-|" or exec "git", "log", '--pretty=format:%H %d', $ref or die "cannot exec git-log";
+        while (<LIST>)
+        {
+            chomp;
+            next if $. == 1;
+            my ($hash,$refnames) = split /\s+/, $_, 2;
+            $old_sha1 = $hash and last if $refnames;
+        }
+        close LIST;
     }
 
     my @commits = ();
@@ -420,7 +431,7 @@ sub send_all_notices($$$)
 
     if (@commits > $max_individual_notices)
     {
-        send_global_notice( $ref, $old_sha1, $new_sha1 ) if $commitlist_address;
+        send_global_notice( $ref, $old_sha1, $new_sha1, $newref ) if $commitlist_address;
         return;
     }
 
