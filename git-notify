@@ -39,8 +39,8 @@ sub get_repos_name();
 
 # some parameters you may want to change
 
-# set this to something that takes "-s"
-my $mailer = "/usr/bin/mail";
+# mailer program
+my $mailer = "sendmail";
 
 # CIA notification address
 my $cia_address = "cia\@cia.navi.cx";
@@ -65,6 +65,9 @@ my $max_stat_size = git_config( "notify.maxstat" ) || 10000;
 # address for mail notices (can be set with -m option)
 my $commitlist_address = git_config( "notify.mail" );
 
+# address mail notices will come from (can be set with -f option)
+my $from_address = git_config( "notify.from" );
+
 # project name for CIA notices (can be set with -c option)
 my $cia_project_name = git_config( "notify.cia" );
 
@@ -85,6 +88,7 @@ sub usage()
     print "Usage: $0 [options] [--] old-sha1 new-sha1 refname\n";
     print "   -c name   Send CIA notifications under specified project name\n";
     print "   -m addr   Send mail notifications to specified address\n";
+    print "   -f from   Send mail notifications from the specified address\n";
     print "   -n max    Set max number of individual mails to send\n";
     print "   -r name   Set the git repository name\n";
     print "   -s bytes  Set the maximum diff size in bytes (-1 for no limit)\n";
@@ -147,6 +151,7 @@ sub parse_options()
         if ($arg eq '--') { last; }
         elsif ($arg eq '-c') { $cia_project_name = shift @ARGV; }
         elsif ($arg eq '-m') { $commitlist_address = shift @ARGV; }
+        elsif ($arg eq '-f') { $from_address = shift @ARGV; }
         elsif ($arg eq '-n') { $max_individual_notices = shift @ARGV; }
         elsif ($arg eq '-r') { $repos_name = shift @ARGV; }
         elsif ($arg eq '-s') { $max_diff_size = shift @ARGV; }
@@ -181,9 +186,12 @@ sub mail_notification($$$@)
         return unless defined $pid;
         if (!$pid)
         {
-            #exec $mailer, "-s", $subject, "-a", "Content-Type: $content_type", $name or die "Cannot exec $mailer";
-            exec $mailer, "-s", $subject, $name or die "Cannot exec $mailer";
+            my @args = ( $mailer );
+            push @args, "-f${from_address}" if $from_address;
+            push @args, $name;
+            exec @args or die "Cannot exec @args: $!";
         }
+        print MAIL "Subject: $subject";
         print MAIL join("\n", @text), "\n";
         close MAIL;
     }
