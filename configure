@@ -1,0 +1,16 @@
+#!/bin/sh
+
+PREFIX="${PREFIX:-/usr}"
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --prefix ) shift ; PREFIX="$1" ; shift ;;
+    --prefix=*) PREFIX="${1##--prefix=}" ; shift ;;
+    * ) last
+  esac
+done
+
+echo "PREFIX = $PREFIX" > config.mk
+
+exit 0
+
