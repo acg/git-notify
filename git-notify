@@ -38,9 +38,6 @@ sub usage()
     exit 1;
 }
 
-sub git_config($);
-sub get_repos_name();
-
 # some parameters you may want to change
 
 # mailer program
@@ -81,7 +78,7 @@ my @exclude_list = split /\s+/, git_config( "notify.exclude" ) || "";
 # Extra options to git rev-list
 my @revlist_options;
 
-sub xml_escape($)
+sub xml_escape
 {
     my $str = shift;
     $str =~ s/&/&amp;/g;
@@ -94,7 +91,7 @@ sub xml_escape($)
 
 # format an integer date + timezone as string
 # algorithm taken from git's date.c
-sub format_date($$)
+sub format_date
 {
     my ($time,$tz) = @_;
 
@@ -112,7 +109,7 @@ sub format_date($$)
 }
 
 # fetch a parameter from the git config file
-sub git_config($)
+sub git_config
 {
     my ($param) = @_;
 
@@ -151,7 +148,7 @@ sub parse_options
 }
 
 # send an email notification
-sub mail_notification($$$@)
+sub mail_notification
 {
     my ($name, $subject, $content_type, @text) = @_;
     $subject = encode("MIME-Q",$subject);
@@ -181,7 +178,7 @@ sub mail_notification($$$@)
 }
 
 # get the default repository name
-sub get_repos_name()
+sub get_repos_name
 {
     my $dir = `git rev-parse --git-dir`;
     chomp $dir;
@@ -192,7 +189,7 @@ sub get_repos_name()
 }
 
 # extract the information from a commit or tag object and return a hash containing the various fields
-sub get_object_info($)
+sub get_object_info
 {
     my $obj = shift;
     my %info = ();
@@ -235,7 +232,7 @@ sub get_object_info($)
 }
 
 # send a commit notice to a mailing list
-sub send_commit_notice($$)
+sub send_commit_notice
 {
     my ($ref,$obj) = @_;
     my %info = get_object_info($obj);
@@ -309,7 +306,7 @@ sub send_commit_notice($$)
 }
 
 # send a global commit notice when there are too many commits for individual mails
-sub send_global_notice($$$$)
+sub send_global_notice
 {
     my ($ref, $old_sha1, $new_sha1, $newref) = @_;
     my @notice = ();
@@ -329,7 +326,7 @@ sub send_global_notice($$$$)
 }
 
 # send all the notices
-sub send_all_notices($$$)
+sub send_all_notices
 {
     my ($old_sha1, $new_sha1, $ref) = @_;
     my $newref = 0;
