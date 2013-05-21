@@ -21,24 +21,6 @@ use open ':std';
 use Encode 'encode';
 use Cwd 'realpath';
 
-exit main( @ARGV );
-
-sub usage()
-{
-    print "Usage: $0 [options] [--] old-sha1 new-sha1 refname\n";
-    print "   -t addr   Send mail notifications to specified address\n";
-    print "   -f from   Send mail notifications from the specified address\n";
-    print "   -m mailer Specify alternate sendmail-compatible program\n";
-    print "   -n max    Set max number of individual mails to send\n";
-    print "   -r name   Set the git repository name\n";
-    print "   -s bytes  Set the maximum diff size in bytes (-1 for no limit)\n";
-    print "   -u url    Set the URL to the gitweb browser\n";
-    print "   -i branch If at least one -i is given, report only for specified branches\n";
-    print "   -x branch Exclude changes to the specified branch from reports\n";
-    print "   -X        Exclude merge commits\n";
-    exit 1;
-}
-
 # some parameters you may want to change
 
 # mailer program
@@ -79,6 +61,24 @@ my @exclude_list = split /\s+/, git_config( "notify.exclude" ) || "";
 # Extra options to git rev-list
 my @revlist_options;
 
+
+exit main( @ARGV );
+
+sub usage()
+{
+    print "Usage: $0 [options] [--] old-sha1 new-sha1 refname\n";
+    print "   -t addr   Send mail notifications to specified address\n";
+    print "   -f from   Send mail notifications from the specified address\n";
+    print "   -m mailer Specify alternate sendmail-compatible program\n";
+    print "   -n max    Set max number of individual mails to send\n";
+    print "   -r name   Set the git repository name\n";
+    print "   -s bytes  Set the maximum diff size in bytes (-1 for no limit)\n";
+    print "   -u url    Set the URL to the gitweb browser\n";
+    print "   -i branch If at least one -i is given, report only for specified branches\n";
+    print "   -x branch Exclude changes to the specified branch from reports\n";
+    print "   -X        Exclude merge commits\n";
+    exit 1;
+}
 
 sub main
 {
@@ -366,7 +366,7 @@ sub git_config
     open CONFIG, "-|" or exec "git", "config", $param;
     my $ret = <CONFIG>;
     chomp $ret if $ret;
-    close CONFIG or $ret = undef;
+    close CONFIG or undef $ret;
     return $ret;
 }
 
