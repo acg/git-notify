@@ -60,7 +60,7 @@ my $max_diff_size = git_config( "notify.maxdiff" ) || 10000;
 my $max_stat_size = git_config( "notify.maxstat" ) || 10000;
 
 # address mail will be sent to (can be set with -t option)
-my $to_address = git_config( "notify.mail" );
+my $to_address = git_config( "notify.to" );
 
 # address mail will appear to come from (can be set with -f option)
 my $from_address = git_config( "notify.from" );
