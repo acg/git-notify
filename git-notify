@@ -38,10 +38,10 @@ my $gitweb_url = git_config( "notify.baseurl" );
 my $repos_name = git_config( "notify.repository" ) || get_repos_name();
 
 # max size of diffs in bytes (can be changed with the -s option), 0 to disable
-my $max_diff_size = git_config( "notify.maxdiff" ) || 10000;
+my $max_diff_size = git_config( "notify.maxdiff", 10000 );
 
 # max size of stat in bytes (can be changed with the -S option), 0 to disable
-my $max_stat_size = git_config( "notify.maxstat" ) || 10000;
+my $max_stat_size = git_config( "notify.maxstat", 10000 );
 
 # address mail will be sent to (can be set with -t option)
 my $to_address = git_config( "notify.to" );
@@ -50,13 +50,13 @@ my $to_address = git_config( "notify.to" );
 my $from_address = git_config( "notify.from" );
 
 # max number of individual notices before falling back to a single global notice (can be set with -n option)
-my $max_individual_notices = git_config( "notify.maxnotices" ) || 100;
+my $max_individual_notices = git_config( "notify.maxnotices", 100 );
 
 # branches to include
-my @include_list = split /\s+/, git_config( "notify.include" ) || "";
+my @include_list = split /\s+/, git_config( "notify.include", "" );
 
 # branches to exclude
-my @exclude_list = split /\s+/, git_config( "notify.exclude" ) || "";
+my @exclude_list = split /\s+/, git_config( "notify.exclude", "" );
 
 # Extra options to git rev-list
 my @revlist_options;
@@ -361,13 +361,13 @@ sub get_object_info
 # fetch a parameter from the git config file
 sub git_config
 {
-    my ($param) = @_;
+    my ($param,$default) = @_;
 
     open CONFIG, "-|" or exec "git", "config", $param;
     my $ret = <CONFIG>;
     chomp $ret if $ret;
     close CONFIG or undef $ret;
-    return $ret;
+    return defined $ret ? $ret : $default;
 }
 
 sub xml_escape
