@@ -153,7 +153,7 @@ sub send_all_notices
             my ($hash,$refnames) = split /\s+/, $_, 2;
             $old_sha1 = $hash and last if $refnames;
         }
-        close LIST;
+        close LIST or die "non-zero exit for git-log: ".($? >> 8);
     }
 
     my @commits = ();
@@ -165,7 +165,7 @@ sub send_all_notices
         die "invalid commit $_" unless /^[0-9a-f]{40}$/;
         unshift @commits, $_;
     }
-    close LIST;
+    close LIST or die "non-zero exit for git-rev-list: ".($? >> 8);
 
     if (@commits > $max_individual_notices)
     {
@@ -221,7 +221,7 @@ sub send_commit_notice
         {
             open STAT, "-|" or exec "git", "diff-tree", "--stat", "-M", "--no-commit-id", $obj or die "cannot exec git-diff-tree";
             $stat = join("", <STAT>);
-            close STAT;
+            close STAT or die "non-zero exit for git-diff-tree: ".($? >> 8);
         }
 
         if (($max_stat_size == -1) || (length($stat) < $max_stat_size))
@@ -235,7 +235,7 @@ sub send_commit_notice
         {
             open DIFF, "-|" or exec "git", "diff-tree", "-p", "-M", "--no-commit-id", $obj or die "cannot exec git-diff-tree";
             $diff = join( "", <DIFF> );
-            close DIFF;
+            close DIFF or die "non-zero exit for git-diff-tree: ".($? >> 8);
         }
 
         if (($max_diff_size == -1) || (length($diff) < $max_diff_size))
@@ -267,7 +267,7 @@ sub send_global_notice
         s/^commit /URL:    $gitweb_url\/?a=commit;h=/ if $gitweb_url;
         push @notice, $_;
     }
-    close LIST;
+    close LIST or die "non-zero exit for git-rev-list: ".($? >> 8);
 
     my $subject = sprintf "New commits on %s branch %s%s", $repos_name, $ref, ($newref?' (new branch)':'');
     mail_notification($to_address, $subject, "text/plain; charset=UTF-8", @notice);
@@ -325,7 +325,7 @@ sub get_object_info
     open TYPE, "-|" or exec "git", "cat-file", "-t", $obj or die "cannot run git-cat-file";
     my $type = <TYPE>;
     chomp $type;
-    close TYPE;
+    close TYPE or die "non-zero exit for git-cat-file: ".($? >> 8);
 
     open OBJ, "-|" or exec "git", "cat-file", $type, $obj or die "cannot run git-cat-file";
     while (<OBJ>)
@@ -350,7 +350,7 @@ sub get_object_info
         }
         elsif (/^$/) { $do_log = 1; }
     }
-    close OBJ;
+    close OBJ or die "non-zero exit for git-cat-file: ".($? >> 8);
 
     $info{"type"} = $type;
     $info{"log"} = \@log;
