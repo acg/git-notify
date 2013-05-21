@@ -14,7 +14,8 @@
 #
 # Usage: git-notify [options] [--] old-sha1 new-sha1 refname
 #
-#   -m addr   Send mail notifications to specified address
+#   -t addr   Send mail notifications to specified address
+#   -f addr   Send mail notifications from specified address
 #   -n max    Set max number of individual mails to send
 #   -r name   Set the git repository name
 #   -s bytes  Set the maximum diff size in bytes (-1 for no limit)
@@ -58,10 +59,10 @@ my $max_diff_size = git_config( "notify.maxdiff" ) || 10000;
 # max size of stat in bytes (can be changed with the -S option), 0 to disable
 my $max_stat_size = git_config( "notify.maxstat" ) || 10000;
 
-# address for mail notices (can be set with -m option)
-my $commitlist_address = git_config( "notify.mail" );
+# address mail will be sent to (can be set with -t option)
+my $to_address = git_config( "notify.mail" );
 
-# address mail notices will come from (can be set with -f option)
+# address mail will appear to come from (can be set with -f option)
 my $from_address = git_config( "notify.from" );
 
 # max number of individual notices before falling back to a single global notice (can be set with -n option)
@@ -79,7 +80,7 @@ my @revlist_options;
 sub usage()
 {
     print "Usage: $0 [options] [--] old-sha1 new-sha1 refname\n";
-    print "   -m addr   Send mail notifications to specified address\n";
+    print "   -t addr   Send mail notifications to specified address\n";
     print "   -f from   Send mail notifications from the specified address\n";
     print "   -n max    Set max number of individual mails to send\n";
     print "   -r name   Set the git repository name\n";
@@ -141,7 +142,7 @@ sub parse_options()
         my $arg = shift @ARGV;
 
         if ($arg eq '--') { last; }
-        elsif ($arg eq '-m') { $commitlist_address = shift @ARGV; }
+        elsif ($arg eq '-t') { $to_address = shift @ARGV; }
         elsif ($arg eq '-f') { $from_address = shift @ARGV; }
         elsif ($arg eq '-n') { $max_individual_notices = shift @ARGV; }
         elsif ($arg eq '-r') { $repos_name = shift @ARGV; }
@@ -313,7 +314,7 @@ sub send_commit_notice($$)
         $subject = $info{"author_name"} . ": " . ${$info{"log"}}[0];
     }
 
-    mail_notification($commitlist_address, $subject, "text/plain; charset=UTF-8", @notice);
+    mail_notification($to_address, $subject, "text/plain; charset=UTF-8", @notice);
 }
 
 # send a global commit notice when there are too many commits for individual mails
@@ -333,7 +334,7 @@ sub send_global_notice($$$$)
     close LIST;
 
     my $subject = sprintf "New commits on %s branch %s%s", $repos_name, $ref, ($newref?' (new branch)':'');
-    mail_notification($commitlist_address, $subject, "text/plain; charset=UTF-8", @notice);
+    mail_notification($to_address, $subject, "text/plain; charset=UTF-8", @notice);
 }
 
 # send all the notices
@@ -374,13 +375,13 @@ sub send_all_notices($$$)
 
     if (@commits > $max_individual_notices)
     {
-        send_global_notice( $ref, $old_sha1, $new_sha1, $newref ) if $commitlist_address;
+        send_global_notice( $ref, $old_sha1, $new_sha1, $newref ) if $to_address;
         return;
     }
 
     foreach my $commit (@commits)
     {
-        send_commit_notice( $ref, $commit ) if $commitlist_address;
+        send_commit_notice( $ref, $commit ) if $to_address;
     }
 }
 
