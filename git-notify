@@ -82,6 +82,7 @@ sub usage()
     print "Usage: $0 [options] [--] old-sha1 new-sha1 refname\n";
     print "   -t addr   Send mail notifications to specified address\n";
     print "   -f from   Send mail notifications from the specified address\n";
+    print "   -m mailer Specify alternate sendmail-compatible program\n";
     print "   -n max    Set max number of individual mails to send\n";
     print "   -r name   Set the git repository name\n";
     print "   -s bytes  Set the maximum diff size in bytes (-1 for no limit)\n";
@@ -144,6 +145,7 @@ sub parse_options()
         if ($arg eq '--') { last; }
         elsif ($arg eq '-t') { $to_address = shift @ARGV; }
         elsif ($arg eq '-f') { $from_address = shift @ARGV; }
+        elsif ($arg eq '-m') { $mailer = shift @ARGV; }
         elsif ($arg eq '-n') { $max_individual_notices = shift @ARGV; }
         elsif ($arg eq '-r') { $repos_name = shift @ARGV; }
         elsif ($arg eq '-s') { $max_diff_size = shift @ARGV; }
