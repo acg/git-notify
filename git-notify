@@ -297,7 +297,7 @@ sub mail_notification
             push @args, $name;
             exec @args or die "Cannot exec @args: $!";
         }
-        print MAIL "Subject: $subject";
+        print MAIL "Subject: $subject\n\n";
         print MAIL join("\n", @text), "\n";
         close MAIL;
     }
