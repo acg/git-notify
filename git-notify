@@ -14,7 +14,6 @@
 #
 # Usage: git-notify [options] [--] old-sha1 new-sha1 refname
 #
-#   -c name   Send CIA notifications under specified project name
 #   -m addr   Send mail notifications to specified address
 #   -n max    Set max number of individual mails to send
 #   -r name   Set the git repository name
@@ -42,9 +41,6 @@ sub get_repos_name();
 # mailer program
 my $mailer = "sendmail";
 
-# CIA notification address
-my $cia_address = "cia\@cia.navi.cx";
-
 # debug mode
 my $debug = 0;
 
@@ -68,9 +64,6 @@ my $commitlist_address = git_config( "notify.mail" );
 # address mail notices will come from (can be set with -f option)
 my $from_address = git_config( "notify.from" );
 
-# project name for CIA notices (can be set with -c option)
-my $cia_project_name = git_config( "notify.cia" );
-
 # max number of individual notices before falling back to a single global notice (can be set with -n option)
 my $max_individual_notices = git_config( "notify.maxnotices" ) || 100;
 
@@ -86,7 +79,6 @@ my @revlist_options;
 sub usage()
 {
     print "Usage: $0 [options] [--] old-sha1 new-sha1 refname\n";
-    print "   -c name   Send CIA notifications under specified project name\n";
     print "   -m addr   Send mail notifications to specified address\n";
     print "   -f from   Send mail notifications from the specified address\n";
     print "   -n max    Set max number of individual mails to send\n";
@@ -149,7 +141,6 @@ sub parse_options()
         my $arg = shift @ARGV;
 
         if ($arg eq '--') { last; }
-        elsif ($arg eq '-c') { $cia_project_name = shift @ARGV; }
         elsif ($arg eq '-m') { $commitlist_address = shift @ARGV; }
         elsif ($arg eq '-f') { $from_address = shift @ARGV; }
         elsif ($arg eq '-n') { $max_individual_notices = shift @ARGV; }
@@ -325,62 +316,6 @@ sub send_commit_notice($$)
     mail_notification($commitlist_address, $subject, "text/plain; charset=UTF-8", @notice);
 }
 
-# send a commit notice to the CIA server
-sub send_cia_notice($$)
-{
-    my ($ref,$commit) = @_;
-    my %info = get_object_info($commit);
-    my @cia_text = ();
-
-    return if $info{"type"} ne "commit";
-
-    push @cia_text,
-        "<message>",
-        "  <generator>",
-        "    <name>git-notify script for CIA</name>",
-        "  </generator>",
-        "  <source>",
-        "    <project>" . xml_escape($cia_project_name) . "</project>",
-        "    <module>" . xml_escape($repos_name) . "</module>",
-        "    <branch>" . xml_escape($ref). "</branch>",
-        "  </source>",
-        "  <body>",
-        "    <commit>",
-        "      <revision>" . substr($commit,0,10) . "</revision>",
-        "      <author>" . xml_escape($info{"author"}) . "</author>",
-        "      <log>" . xml_escape(join "\n", @{$info{"log"}}) . "</log>",
-        "      <files>";
-
-    open COMMIT, "-|" or exec "git", "diff-tree", "--name-status", "-r", "-M", $commit or die "cannot run git-diff-tree";
-    while (<COMMIT>)
-    {
-        chomp;
-        if (/^([AMD])\t(.*)$/)
-        {
-            my ($action, $file) = ($1, $2);
-            my %actions = ( "A" => "add", "M" => "modify", "D" => "remove" );
-            next unless defined $actions{$action};
-            push @cia_text, "        <file action=\"$actions{$action}\">" . xml_escape($file) . "</file>";
-        }
-        elsif (/^R\d+\t(.*)\t(.*)$/)
-        {
-            my ($old, $new) = ($1, $2);
-            push @cia_text, "        <file action=\"rename\" to=\"" . xml_escape($new) . "\">" . xml_escape($old) . "</file>";
-        }
-    }
-    close COMMIT;
-
-    push @cia_text,
-        "      </files>",
-        $gitweb_url ? "      <url>" . xml_escape("$gitweb_url/?a=commit;h=$commit") . "</url>" : "",
-        "    </commit>",
-        "  </body>",
-        "  <timestamp>" . $info{"author_date"} . "</timestamp>",
-        "</message>";
-
-    mail_notification($cia_address, "DeliverXML", "text/xml", @cia_text);
-}
-
 # send a global commit notice when there are too many commits for individual mails
 sub send_global_notice($$$$)
 {
@@ -446,7 +381,6 @@ sub send_all_notices($$$)
     foreach my $commit (@commits)
     {
         send_commit_notice( $ref, $commit ) if $commitlist_address;
-        send_cia_notice( $ref, $commit ) if $cia_project_name;
     }
 }
 
