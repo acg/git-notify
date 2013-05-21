@@ -9,30 +9,34 @@
 # published by the Free Software Foundation; either version 2 of
 # the License, or (at your option) any later version.
 #
-#
 # This script is meant to be called from .git/hooks/post-receive.
 #
 # Usage: git-notify [options] [--] old-sha1 new-sha1 refname
-#
-#   -t addr   Send mail notifications to specified address
-#   -f addr   Send mail notifications from specified address
-#   -n max    Set max number of individual mails to send
-#   -r name   Set the git repository name
-#   -s bytes  Set the maximum diff size in bytes (-1 for no limit)
-#   -u url    Set the URL to the gitweb browser
-#   -i branch If at least one -i is given, report only for specified branches
-#   -x branch Exclude changes to the specified branch from reports
-#   -X        Exclude merge commits
-#
 
 use strict;
 use warnings;
-use open ':utf8';
+use open ':encoding(utf8)';
+use open ':std';
 use Encode 'encode';
 use Cwd 'realpath';
 
-binmode STDIN, ':utf8';
-binmode STDOUT, ':utf8';
+exit main( @ARGV );
+
+sub usage()
+{
+    print "Usage: $0 [options] [--] old-sha1 new-sha1 refname\n";
+    print "   -t addr   Send mail notifications to specified address\n";
+    print "   -f from   Send mail notifications from the specified address\n";
+    print "   -m mailer Specify alternate sendmail-compatible program\n";
+    print "   -n max    Set max number of individual mails to send\n";
+    print "   -r name   Set the git repository name\n";
+    print "   -s bytes  Set the maximum diff size in bytes (-1 for no limit)\n";
+    print "   -u url    Set the URL to the gitweb browser\n";
+    print "   -i branch If at least one -i is given, report only for specified branches\n";
+    print "   -x branch Exclude changes to the specified branch from reports\n";
+    print "   -X        Exclude merge commits\n";
+    exit 1;
+}
 
 sub git_config($);
 sub get_repos_name();
@@ -77,22 +81,6 @@ my @exclude_list = split /\s+/, git_config( "notify.exclude" ) || "";
 # Extra options to git rev-list
 my @revlist_options;
 
-sub usage()
-{
-    print "Usage: $0 [options] [--] old-sha1 new-sha1 refname\n";
-    print "   -t addr   Send mail notifications to specified address\n";
-    print "   -f from   Send mail notifications from the specified address\n";
-    print "   -m mailer Specify alternate sendmail-compatible program\n";
-    print "   -n max    Set max number of individual mails to send\n";
-    print "   -r name   Set the git repository name\n";
-    print "   -s bytes  Set the maximum diff size in bytes (-1 for no limit)\n";
-    print "   -u url    Set the URL to the gitweb browser\n";
-    print "   -i branch If at least one -i is given, report only for specified branches\n";
-    print "   -x branch Exclude changes to the specified branch from reports\n";
-    print "   -X        Exclude merge commits\n";
-    exit 1;
-}
-
 sub xml_escape($)
 {
     my $str = shift;
@@ -136,29 +124,30 @@ sub git_config($)
 }
 
 # parse command line options
-sub parse_options()
+sub parse_options
 {
-    while (@ARGV && $ARGV[0] =~ /^-/)
+    while (@_ && $_[0] =~ /^-/)
     {
-        my $arg = shift @ARGV;
+        my $arg = shift;
 
         if ($arg eq '--') { last; }
-        elsif ($arg eq '-t') { $to_address = shift @ARGV; }
-        elsif ($arg eq '-f') { $from_address = shift @ARGV; }
-        elsif ($arg eq '-m') { $mailer = shift @ARGV; }
-        elsif ($arg eq '-n') { $max_individual_notices = shift @ARGV; }
-        elsif ($arg eq '-r') { $repos_name = shift @ARGV; }
-        elsif ($arg eq '-s') { $max_diff_size = shift @ARGV; }
-        elsif ($arg eq '-S') { $max_stat_size = shift @ARGV; }
-        elsif ($arg eq '-u') { $gitweb_url = shift @ARGV; }
-        elsif ($arg eq '-i') { push @include_list, shift @ARGV; }
-        elsif ($arg eq '-x') { push @exclude_list, shift @ARGV; }
+        elsif ($arg eq '-t') { $to_address = shift; }
+        elsif ($arg eq '-f') { $from_address = shift; }
+        elsif ($arg eq '-m') { $mailer = shift; }
+        elsif ($arg eq '-n') { $max_individual_notices = shift; }
+        elsif ($arg eq '-r') { $repos_name = shift; }
+        elsif ($arg eq '-s') { $max_diff_size = shift; }
+        elsif ($arg eq '-S') { $max_stat_size = shift; }
+        elsif ($arg eq '-u') { $gitweb_url = shift; }
+        elsif ($arg eq '-i') { push @include_list, shift; }
+        elsif ($arg eq '-x') { push @exclude_list, shift; }
         elsif ($arg eq '-X') { push @revlist_options, "--no-merges"; }
         elsif ($arg eq '-d') { $debug++; }
         else { usage(); }
     }
-    if (@ARGV && $#ARGV != 2) { usage(); }
+    if (@_ && $#_ != 2) { usage(); }
     @exclude_list = map { "^$_"; } @exclude_list;
+    return @_;
 }
 
 # send an email notification
@@ -387,22 +376,28 @@ sub send_all_notices($$$)
     }
 }
 
-parse_options();
-
-# append repository path to URL
-$gitweb_url .= "/$repos_name.git" if $gitweb_url;
-
-if (@ARGV)
+sub main
 {
-    send_all_notices( $ARGV[0], $ARGV[1], $ARGV[2] );
-}
-else  # read them from stdin
-{
-    while (<>)
+    my @args = @_;
+
+    @args = parse_options( @args );
+
+    # append repository path to URL
+    $gitweb_url .= "/$repos_name.git" if $gitweb_url;
+
+    if (@args)
     {
-        chomp;
-        if (/^([0-9a-f]{40}) ([0-9a-f]{40}) (.*)$/) { send_all_notices( $1, $2, $3 ); }
+        send_all_notices( $args[0], $args[1], $args[2] );
     }
+    else  # read them from stdin
+    {
+        while (<>)
+        {
+            chomp;
+            if (/^([0-9a-f]{40}) ([0-9a-f]{40}) (.*)$/) { send_all_notices( $1, $2, $3 ); }
+        }
+    }
+
+    return 0;
 }
 
-exit 0;
