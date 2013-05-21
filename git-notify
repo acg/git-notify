@@ -78,46 +78,30 @@ my @exclude_list = split /\s+/, git_config( "notify.exclude" ) || "";
 # Extra options to git rev-list
 my @revlist_options;
 
-sub xml_escape
-{
-    my $str = shift;
-    $str =~ s/&/&amp;/g;
-    $str =~ s/</&lt;/g;
-    $str =~ s/>/&gt;/g;
-    my @chars = unpack "U*", $str;
-    $str = join "", map { ($_ > 127) ? sprintf "&#%u;", $_ : chr($_); } @chars;
-    return $str;
-}
 
-# format an integer date + timezone as string
-# algorithm taken from git's date.c
-sub format_date
+sub main
 {
-    my ($time,$tz) = @_;
+    my @args = @_;
 
-    if ($tz < 0)
+    @args = parse_options( @args );
+
+    # append repository path to URL
+    $gitweb_url .= "/$repos_name.git" if $gitweb_url;
+
+    if (@args)
     {
-        my $minutes = (-$tz / 100) * 60 + (-$tz % 100);
-        $time -= $minutes * 60;
+        send_all_notices( $args[0], $args[1], $args[2] );
     }
-    else
+    else  # read them from stdin
     {
-        my $minutes = ($tz / 100) * 60 + ($tz % 100);
-        $time += $minutes * 60;
+        while (<>)
+        {
+            chomp;
+            if (/^([0-9a-f]{40}) ([0-9a-f]{40}) (.*)$/) { send_all_notices( $1, $2, $3 ); }
+        }
     }
-    return gmtime($time) . sprintf " %+05d", $tz;
-}
 
-# fetch a parameter from the git config file
-sub git_config
-{
-    my ($param) = @_;
-
-    open CONFIG, "-|" or exec "git", "config", $param;
-    my $ret = <CONFIG>;
-    chomp $ret if $ret;
-    close CONFIG or $ret = undef;
-    return $ret;
+    return 0;
 }
 
 # parse command line options
@@ -147,88 +131,52 @@ sub parse_options
     return @_;
 }
 
-# send an email notification
-sub mail_notification
+# send all the notices
+sub send_all_notices
 {
-    my ($name, $subject, $content_type, @text) = @_;
-    $subject = encode("MIME-Q",$subject);
-    if ($debug)
+    my ($old_sha1, $new_sha1, $ref) = @_;
+    my $newref = 0;
+
+    $ref =~ s/^refs\/heads\///;
+
+    return if (@include_list && !grep {$_ eq $ref} @include_list);
+
+    if ($old_sha1 eq '0' x 40)  # new ref, find closest "branch point" ancestor
     {
-        print "---------------------\n";
-        print "To: $name\n";
-        print "Subject: $subject\n";
-        print "Content-Type: $content_type\n";
-        print "\n", join("\n", @text), "\n";
-    }
-    else
-    {
-        my $pid = open MAIL, "|-";
-        return unless defined $pid;
-        if (!$pid)
+        $newref = 1;
+        $old_sha1 = undef;
+        open LIST, "-|" or exec "git", "log", '--pretty=format:%H %d', $ref or die "cannot exec git-log";
+        while (<LIST>)
         {
-            my @args = ( $mailer );
-            push @args, "-f${from_address}" if $from_address;
-            push @args, $name;
-            exec @args or die "Cannot exec @args: $!";
+            chomp;
+            next if $. == 1;
+            my ($hash,$refnames) = split /\s+/, $_, 2;
+            $old_sha1 = $hash and last if $refnames;
         }
-        print MAIL "Subject: $subject";
-        print MAIL join("\n", @text), "\n";
-        close MAIL;
+        close LIST;
     }
-}
 
-# get the default repository name
-sub get_repos_name
-{
-    my $dir = `git rev-parse --git-dir`;
-    chomp $dir;
-    my $repos = realpath($dir);
-    $repos =~ s/(.*?)((\.git\/)?\.git)$/$1/;
-    $repos =~ s/(.*)\/([^\/]+)\/?$/$2/;
-    return $repos;
-}
+    my @commits = ();
 
-# extract the information from a commit or tag object and return a hash containing the various fields
-sub get_object_info
-{
-    my $obj = shift;
-    my %info = ();
-    my @log = ();
-    my $do_log = 0;
-
-    open TYPE, "-|" or exec "git", "cat-file", "-t", $obj or die "cannot run git-cat-file";
-    my $type = <TYPE>;
-    chomp $type;
-    close TYPE;
-
-    open OBJ, "-|" or exec "git", "cat-file", $type, $obj or die "cannot run git-cat-file";
-    while (<OBJ>)
+    open LIST, "-|" or exec "git", "rev-list", @revlist_options, "^$old_sha1", "$new_sha1", @exclude_list or die "cannot exec git-rev-list";
+    while (<LIST>)
     {
         chomp;
-        if ($do_log)
-        {
-            last if /^-----BEGIN PGP SIGNATURE-----/;
-            push @log, $_;
-        }
-        elsif (/^(author|committer|tagger) ((.*)(<.*>)) (\d+) ([+-]\d+)$/)
-        {
-            $info{$1} = $2;
-            $info{$1 . "_name"} = $3;
-            $info{$1 . "_email"} = $4;
-            $info{$1 . "_date"} = $5;
-            $info{$1 . "_tz"} = $6;
-        }
-        elsif (/^tag (.*)$/)
-        {
-            $info{"tag"} = $1;
-        }
-        elsif (/^$/) { $do_log = 1; }
+        die "invalid commit $_" unless /^[0-9a-f]{40}$/;
+        unshift @commits, $_;
     }
-    close OBJ;
+    close LIST;
 
-    $info{"type"} = $type;
-    $info{"log"} = \@log;
-    return %info;
+    if (@commits > $max_individual_notices)
+    {
+        send_global_notice( $ref, $old_sha1, $new_sha1, $newref ) if $to_address;
+        return;
+    }
+
+    foreach my $commit (@commits)
+    {
+        send_commit_notice( $ref, $commit ) if $to_address;
+    }
 }
 
 # send a commit notice to a mailing list
@@ -325,76 +273,129 @@ sub send_global_notice
     mail_notification($to_address, $subject, "text/plain; charset=UTF-8", @notice);
 }
 
-# send all the notices
-sub send_all_notices
+# send an email notification
+sub mail_notification
 {
-    my ($old_sha1, $new_sha1, $ref) = @_;
-    my $newref = 0;
-
-    $ref =~ s/^refs\/heads\///;
-
-    return if (@include_list && !grep {$_ eq $ref} @include_list);
-
-    if ($old_sha1 eq '0' x 40)  # new ref, find closest "branch point" ancestor
+    my ($name, $subject, $content_type, @text) = @_;
+    $subject = encode("MIME-Q",$subject);
+    if ($debug)
     {
-        $newref = 1;
-        $old_sha1 = undef;
-        open LIST, "-|" or exec "git", "log", '--pretty=format:%H %d', $ref or die "cannot exec git-log";
-        while (<LIST>)
+        print "---------------------\n";
+        print "To: $name\n";
+        print "Subject: $subject\n";
+        print "Content-Type: $content_type\n";
+        print "\n", join("\n", @text), "\n";
+    }
+    else
+    {
+        my $pid = open MAIL, "|-";
+        return unless defined $pid;
+        if (!$pid)
         {
-            chomp;
-            next if $. == 1;
-            my ($hash,$refnames) = split /\s+/, $_, 2;
-            $old_sha1 = $hash and last if $refnames;
+            my @args = ( $mailer );
+            push @args, "-f${from_address}" if $from_address;
+            push @args, $name;
+            exec @args or die "Cannot exec @args: $!";
         }
-        close LIST;
-    }
-
-    my @commits = ();
-
-    open LIST, "-|" or exec "git", "rev-list", @revlist_options, "^$old_sha1", "$new_sha1", @exclude_list or die "cannot exec git-rev-list";
-    while (<LIST>)
-    {
-        chomp;
-        die "invalid commit $_" unless /^[0-9a-f]{40}$/;
-        unshift @commits, $_;
-    }
-    close LIST;
-
-    if (@commits > $max_individual_notices)
-    {
-        send_global_notice( $ref, $old_sha1, $new_sha1, $newref ) if $to_address;
-        return;
-    }
-
-    foreach my $commit (@commits)
-    {
-        send_commit_notice( $ref, $commit ) if $to_address;
+        print MAIL "Subject: $subject";
+        print MAIL join("\n", @text), "\n";
+        close MAIL;
     }
 }
 
-sub main
+# get the default repository name
+sub get_repos_name
 {
-    my @args = @_;
+    my $dir = `git rev-parse --git-dir`;
+    chomp $dir;
+    my $repos = realpath($dir);
+    $repos =~ s/(.*?)((\.git\/)?\.git)$/$1/;
+    $repos =~ s/(.*)\/([^\/]+)\/?$/$2/;
+    return $repos;
+}
 
-    @args = parse_options( @args );
+# extract the information from a commit or tag object and return a hash containing the various fields
+sub get_object_info
+{
+    my $obj = shift;
+    my %info = ();
+    my @log = ();
+    my $do_log = 0;
 
-    # append repository path to URL
-    $gitweb_url .= "/$repos_name.git" if $gitweb_url;
+    open TYPE, "-|" or exec "git", "cat-file", "-t", $obj or die "cannot run git-cat-file";
+    my $type = <TYPE>;
+    chomp $type;
+    close TYPE;
 
-    if (@args)
+    open OBJ, "-|" or exec "git", "cat-file", $type, $obj or die "cannot run git-cat-file";
+    while (<OBJ>)
     {
-        send_all_notices( $args[0], $args[1], $args[2] );
-    }
-    else  # read them from stdin
-    {
-        while (<>)
+        chomp;
+        if ($do_log)
         {
-            chomp;
-            if (/^([0-9a-f]{40}) ([0-9a-f]{40}) (.*)$/) { send_all_notices( $1, $2, $3 ); }
+            last if /^-----BEGIN PGP SIGNATURE-----/;
+            push @log, $_;
         }
+        elsif (/^(author|committer|tagger) ((.*)(<.*>)) (\d+) ([+-]\d+)$/)
+        {
+            $info{$1} = $2;
+            $info{$1 . "_name"} = $3;
+            $info{$1 . "_email"} = $4;
+            $info{$1 . "_date"} = $5;
+            $info{$1 . "_tz"} = $6;
+        }
+        elsif (/^tag (.*)$/)
+        {
+            $info{"tag"} = $1;
+        }
+        elsif (/^$/) { $do_log = 1; }
     }
+    close OBJ;
 
-    return 0;
+    $info{"type"} = $type;
+    $info{"log"} = \@log;
+    return %info;
+}
+
+# fetch a parameter from the git config file
+sub git_config
+{
+    my ($param) = @_;
+
+    open CONFIG, "-|" or exec "git", "config", $param;
+    my $ret = <CONFIG>;
+    chomp $ret if $ret;
+    close CONFIG or $ret = undef;
+    return $ret;
+}
+
+sub xml_escape
+{
+    my $str = shift;
+    $str =~ s/&/&amp;/g;
+    $str =~ s/</&lt;/g;
+    $str =~ s/>/&gt;/g;
+    my @chars = unpack "U*", $str;
+    $str = join "", map { ($_ > 127) ? sprintf "&#%u;", $_ : chr($_); } @chars;
+    return $str;
+}
+
+# format an integer date + timezone as string
+# algorithm taken from git's date.c
+sub format_date
+{
+    my ($time,$tz) = @_;
+
+    if ($tz < 0)
+    {
+        my $minutes = (-$tz / 100) * 60 + (-$tz % 100);
+        $time -= $minutes * 60;
+    }
+    else
+    {
+        my $minutes = ($tz / 100) * 60 + ($tz % 100);
+        $time += $minutes * 60;
+    }
+    return gmtime($time) . sprintf " %+05d", $tz;
 }
 
