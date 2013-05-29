@@ -152,7 +152,7 @@ sub send_all_notices
             chomp;
             next if $. == 1;
             my ($hash,$refnames) = split /\s+/, $_, 2;
-            $old_sha1 = $hash and last if $refnames;
+            $old_sha1 ||= $hash if $refnames;
         }
         close LIST or die "non-zero exit for git-log: ".($? >> 8);
     }
