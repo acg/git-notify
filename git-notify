@@ -260,8 +260,9 @@ sub send_global_notice
     my ($ref, $old_sha1, $new_sha1, $newref) = @_;
     my @notice = ();
 
-    push @revlist_options, "--pretty";
-    open LIST, "-|" or exec "git", "rev-list", @revlist_options, "^$old_sha1", "$new_sha1", @exclude_list or die "cannot exec git-rev-list";
+    my @log_options = @revlist_options;
+    push @log_options, "--stat" if $max_stat_size;
+    open LIST, "-|" or exec "git", "log", @log_options, "^$old_sha1", "$new_sha1", @exclude_list or die "cannot exec git-rev-list";
     while (<LIST>)
     {
         chomp;
