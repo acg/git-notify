@@ -1,6 +1,11 @@
 sinclude config.mk
 
-all :
+all : configure
+
+configure : config.mk
+
+config.mk :
+	./configure
 
 install :
 	install -d $(DESTDIR)$(PREFIX)/bin
