@@ -1,0 +1,5 @@
+git-notify (0.2) trusty; urgency=low
+
+  * First official package release.
+
+ -- Alan Grow <agrow@iobound.net>  Sun, 26 Apr 2015 16:50:40 -0600

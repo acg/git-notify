@@ -1,0 +1,11 @@
+#!/usr/bin/make -f
+# -*- makefile -*-
+
+DIR = ./debian/git-notify
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+	true
+

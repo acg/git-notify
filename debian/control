@@ -1,0 +1,11 @@
+Source: git-notify
+Section: devel
+Priority: optional
+Maintainer: Alan Grow <agrow@iobound.net>
+Standards-Version: 0.1.0
+
+Package: git-notify
+Architecture: any
+Depends: git (>= 1.4~), perl-base (>= 5.10~)
+Description: Sends git commit notification emails.
+  A git post-receive hook that sends plaintext commit notification emails.
